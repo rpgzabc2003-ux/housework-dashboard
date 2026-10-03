@@ -1,0 +1,1066 @@
+<!DOCTYPE html>
+<html lang="zh-HANT">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>家務追蹤與管理 Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0f5ff',
+              100: '#e5edff',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(156, 163, 175, 0.4); border-radius: 9999px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(156, 163, 175, 0.7); }
+  </style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 min-h-screen transition-colors duration-200">
+
+<div id="app" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24">
+  
+  <!-- Header Bar -->
+  <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 pb-6 border-b border-slate-200 dark:border-slate-800">
+    <div>
+      <div class="flex items-center gap-3">
+        <div class="p-2.5 bg-blue-600 text-white rounded-xl shadow-md shadow-blue-500/20">
+          <i class="fas fa-broom text-xl"></i>
+        </div>
+        <div>
+          <h1 class="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">家務追蹤與管理</h1>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">輕鬆規劃、分配與追蹤家庭日常事務</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Controls: Status & Modals -->
+    <div class="flex items-center gap-2.5 flex-wrap">
+      <!-- Connection Status Badge -->
+      <button onclick="openFirebaseModal()" id="statusBadge" class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border transition-all bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/60 hover:shadow-sm">
+        <span class="relative flex h-2 w-2">
+          <span id="statusPing" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+          <span id="statusDot" class="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+        </span>
+        <span id="statusText">檢測中...</span>
+        <i class="fas fa-cog text-slate-400 text-xs ml-1"></i>
+      </button>
+
+      <!-- Manage Templates Button -->
+      <button onclick="openTemplateModal()" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors flex items-center gap-1.5">
+        <i class="fas fa-th-large text-slate-500"></i> 家務模板
+      </button>
+
+      <!-- Theme Toggle -->
+      <button onclick="toggleDarkMode()" class="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors">
+        <i id="themeIcon" class="fas fa-moon"></i>
+      </button>
+    </div>
+  </header>
+
+  <div id="overdueBanner" class="hidden mb-6 p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-900 dark:text-amber-200">
+    <div class="flex items-center justify-between gap-3 flex-wrap">
+      <div class="flex items-center gap-3">
+        <div class="p-2 bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded-lg shrink-0">
+          <i class="fas fa-exclamation-triangle"></i>
+        </div>
+        <div>
+          <h4 class="text-sm font-semibold">有過期未完成家務（Bring Forward）</h4>
+          <p class="text-xs text-amber-700 dark:text-amber-300 mt-0.5" id="overdueText">發現 0 項之前的家務尚未完成</p>
+        </div>
+      </div>
+      <button onclick="bringForwardOverdueTasks()" class="px-3 py-1.5 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition-colors shadow-sm flex items-center gap-1.5">
+        <i class="fas fa-calendar-plus"></i> 一鍵帶到今天
+      </button>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+    
+    <!-- Left Column: Add Task & Fast Chips (4 cols) -->
+    <div class="lg:col-span-4 space-y-6">
+      
+      <!-- Quick Chips Template Picker -->
+      <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm border border-slate-200/80 dark:border-slate-700/60">
+        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3 flex items-center justify-between">
+          <span><i class="fas fa-bolt text-amber-500 me-1.5"></i>常用家務快選</span>
+          <span class="text-[10px] font-normal text-slate-400">點擊快速填寫</span>
+        </h3>
+        <div id="quickChipsContainer" class="flex flex-wrap gap-1.5">
+          <!-- Chips render here -->
+        </div>
+      </div>
+
+      <!-- Add New Task Form -->
+      <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm border border-slate-200/80 dark:border-slate-700/60">
+        <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2">
+          <i class="fas fa-plus-circle text-blue-500"></i> 新增家務項目
+        </h3>
+        <form id="addTaskForm" onsubmit="handleAddTask(event)" class="space-y-4">
+          <div>
+            <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">家務名稱 *</label>
+            <input type="text" id="taskTitle" required placeholder="例如：吸地洗地板、倒垃圾" class="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 transition">
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">負責人</label>
+              <select id="taskAssignee" class="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 transition">
+                <option value="媽媽">媽媽</option>
+                <option value="爸爸">爸爸</option>
+                <option value="孩子">孩子</option>
+                <option value="全家共同">全家共同</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">預計執行日期 *</label>
+              <input type="date" id="taskDueDate" required class="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 transition">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">重複頻率</label>
+              <select id="taskRepeat" onchange="toggleRepeatIntervalInput()" class="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 transition">
+                <option value="none">單次 (不重複)</option>
+                <option value="daily">每天重複</option>
+                <option value="interval">每 N 天重複</option>
+              </select>
+            </div>
+            <div id="repeatIntervalContainer" class="hidden">
+              <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">間隔天數 (N)</label>
+              <input type="number" id="taskInterval" min="2" value="3" class="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 transition">
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">備註/注意事項</label>
+            <textarea id="taskNotes" rows="2" placeholder="選填，如：補充專用清潔劑" class="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"></textarea>
+          </div>
+
+          <button type="submit" class="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl shadow-md shadow-blue-500/20 hover:shadow-lg transition flex items-center justify-center gap-2">
+            <i class="fas fa-plus"></i> 新增家務
+          </button>
+        </form>
+      </div>
+
+    </div>
+
+    <!-- Right Column: View Switcher, Filter & Task List / Calendar (8 cols) -->
+    <div class="lg:col-span-8 space-y-4">
+      
+      <!-- Controls Topbar -->
+      <div class="bg-white dark:bg-slate-800 rounded-2xl p-4 shadow-sm border border-slate-200/80 dark:border-slate-700/60 flex flex-col sm:flex-row items-center justify-between gap-4">
+        
+        <!-- View Mode Tabs -->
+        <div class="flex items-center bg-slate-100 dark:bg-slate-900 p-1 rounded-xl w-full sm:w-auto">
+          <button onclick="switchView('list')" id="tabBtnList" class="flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-xs font-semibold transition-all bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm">
+            <i class="fas fa-list-ul me-1.5"></i>列表視圖
+          </button>
+          <button onclick="switchView('calendar')" id="tabBtnCalendar" class="flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-all">
+            <i class="fas fa-calendar-alt me-1.5"></i>月曆檢視
+          </button>
+        </div>
+
+        <!-- Filter Controls -->
+        <div class="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
+          <select id="filterAssignee" onchange="renderApp()" class="px-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-200">
+            <option value="all">全部人員</option>
+            <option value="媽媽">媽媽</option>
+            <option value="爸爸">爸爸</option>
+            <option value="孩子">孩子</option>
+            <option value="全家共同">全家共同</option>
+          </select>
+
+          <select id="filterStatus" onchange="renderApp()" class="px-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-200">
+            <option value="all">全部狀態</option>
+            <option value="pending">待辦中</option>
+            <option value="completed">已完成</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Container: List View -->
+      <div id="listView" class="space-y-3">
+        <div id="taskListContainer" class="space-y-2.5">
+          <!-- Tasks render here -->
+        </div>
+      </div>
+
+      <!-- Container: Calendar View -->
+      <div id="calendarView" class="hidden bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm border border-slate-200/80 dark:border-slate-700/60">
+        <div class="flex items-center justify-between mb-4">
+          <h3 id="calendarMonthTitle" class="text-base font-bold text-slate-800 dark:text-slate-100">2026 年 10 月</h3>
+          <div class="flex items-center gap-1">
+            <button onclick="changeMonth(-1)" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300">
+              <i class="fas fa-chevron-left text-xs"></i>
+            </button>
+            <button onclick="changeMonth(1)" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300">
+              <i class="fas fa-chevron-right text-xs"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-7 text-center text-xs font-semibold text-slate-400 dark:text-slate-500 mb-2">
+          <div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div>
+        </div>
+
+        <div id="calendarGrid" class="grid grid-cols-7 gap-1 text-sm">
+          <!-- Calendar Days Rendered Dynamically -->
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+
+<div id="firebaseModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
+  <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 max-h-[90vh] overflow-y-auto custom-scrollbar">
+    
+    <div class="flex justify-between items-center mb-4">
+      <div class="flex items-center gap-2.5">
+        <div class="p-2 bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 rounded-xl">
+          <i class="fas fa-satellite-dish text-lg"></i>
+        </div>
+        <div>
+          <h3 class="text-lg font-bold text-slate-800 dark:text-white">Firebase 雲端連線診斷與設定</h3>
+          <p class="text-xs text-slate-500 dark:text-slate-400">即時檢測 Firebase Firestore 連線狀態並自動對症下藥</p>
+        </div>
+      </div>
+      <button onclick="closeFirebaseModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1">
+        <i class="fas fa-times text-lg"></i>
+      </button>
+    </div>
+
+    <!-- Diagnostic Control Panel -->
+    <div class="mb-5 p-4 rounded-xl bg-slate-900 text-slate-100 font-mono text-xs shadow-inner space-y-2 border border-slate-700">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-2 mb-2">
+        <span class="text-slate-400 font-bold flex items-center gap-2">
+          <i class="fas fa-terminal text-blue-400"></i> 連線即時診斷台 (Live Diagnostic Logs)
+        </span>
+        <button onclick="runFirebaseDiagnostics()" class="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-[11px] font-sans font-medium transition flex items-center gap-1">
+          <i class="fas fa-sync-alt"></i> 重新測試連線
+        </button>
+      </div>
+
+      <!-- Logs Output -->
+      <div id="diagnosticLogs" class="space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar pr-2 leading-relaxed">
+        <div class="text-slate-400">點擊「重新測試連線」啟動診斷...</div>
+      </div>
+    </div>
+
+    <!-- Troubleshooting Guidance (Shown dynamically on error) -->
+    <div id="troubleshootGuide" class="hidden mb-5 p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-xs space-y-2">
+      <div class="font-bold text-amber-800 dark:text-amber-200 flex items-center gap-2 text-sm">
+        <i class="fas fa-lightbulb text-amber-500"></i> 診斷結果建議與修復指引：
+      </div>
+      <div id="troubleshootContent" class="text-amber-900 dark:text-amber-200 space-y-2 leading-relaxed">
+        <!-- Content inserted dynamically -->
+      </div>
+    </div>
+
+    <!-- Firebase Config Form -->
+    <form id="firebaseConfigForm" onsubmit="saveCustomFirebaseConfig(event)" class="space-y-3 pt-2 border-t border-slate-200 dark:border-slate-700">
+      <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400">當前套用之 Firebase Config</h4>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">API Key</label>
+          <input type="text" id="cfg_apiKey" required class="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Project ID</label>
+          <input type="text" id="cfg_projectId" required class="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Auth Domain</label>
+          <input type="text" id="cfg_authDomain" required class="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">App ID</label>
+          <input type="text" id="cfg_appId" required class="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white">
+        </div>
+      </div>
+
+      <div class="flex justify-between items-center pt-3">
+        <button type="button" onclick="restoreDefaultFirebaseConfig()" class="text-xs text-slate-500 hover:text-blue-600 dark:text-slate-400 underline">
+          重設為預設設定 (kidney-f1e3c)
+        </button>
+        <div class="flex gap-2">
+          <button type="button" onclick="closeFirebaseModal()" class="px-3.5 py-1.5 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg">
+            關閉
+          </button>
+          <button type="submit" class="px-4 py-1.5 text-xs font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-sm">
+            儲存並套用
+          </button>
+        </div>
+      </div>
+    </form>
+
+  </div>
+</div>
+
+<div id="templateModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
+  <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 max-h-[85vh] overflow-y-auto">
+    <div class="flex justify-between items-center mb-4">
+      <h3 class="text-base font-bold text-slate-800 dark:text-white flex items-center gap-2">
+        <i class="fas fa-sliders-h text-blue-500"></i> 管理家務模板
+      </h3>
+      <button onclick="closeTemplateModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+        <i class="fas fa-times text-lg"></i>
+      </button>
+    </div>
+
+    <!-- Add Custom Chip -->
+    <div class="flex gap-2 mb-4">
+      <input type="text" id="newChipName" placeholder="如：摺衣服、曬被單" class="flex-1 px-3 py-1.5 text-xs rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white">
+      <button onclick="addCustomTemplateChip()" class="px-3 py-1.5 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-xl">
+        新增模板
+      </button>
+    </div>
+
+    <!-- List of Chips -->
+    <div id="templateManagerList" class="space-y-2 max-h-60 overflow-y-auto pr-1">
+      <!-- Dynamic chips list -->
+    </div>
+  </div>
+</div>
+
+<!-- Toast Alert Container -->
+<div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+<script type="module">
+  import { initializeApp, getApps, getApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+  import { 
+    getFirestore, 
+    collection, 
+    onSnapshot, 
+    addDoc, 
+    updateDoc, 
+    deleteDoc, 
+    doc, 
+    getDocs,
+    limit,
+    query
+  } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+
+  // 1. EMBEDDED DEFAULT FIREBASE CONFIG (Provided by User)
+  const DEFAULT_FIREBASE_CONFIG = {
+    apiKey: "AIzaSyAdc9V2TQ2-3GZJxclUjo_T-Xf-LF-BYes",
+    authDomain: "kidney-f1e3c.firebaseapp.com",
+    projectId: "kidney-f1e3c",
+    storageBucket: "kidney-f1e3c.firebasestorage.app",
+    messagingSenderId: "173809478708",
+    appId: "1:173809478708:web:53fba267cbc78381abee61",
+    measurementId: "G-HZTC93X4ML"
+  };
+
+  // State Management
+  window.db = null;
+  window.unsubscribeTasks = null;
+  window.isFirebaseConnected = false;
+  window.activeConfig = DEFAULT_FIREBASE_CONFIG;
+
+  window.tasks = [];
+  window.quickTemplates = [
+    { id: '1', title: '倒垃圾廚餘', assignee: '孩子' },
+    { id: '2', title: '吸地拖地', assignee: '媽媽' },
+    { id: '3', title: '洗浴室衛生間', assignee: '爸爸' },
+    { id: '4', title: '晾/收衣服', assignee: '全家共同' },
+    { id: '5', title: '擦桌子', assignee: '孩子' }
+  ];
+
+  window.currentView = 'list'; // 'list' | 'calendar'
+  window.calendarDate = new Date();
+
+  // Helper: Log message to diagnostic console
+  function addDiagLog(msg, type = 'info') {
+    const logsEl = document.getElementById('diagnosticLogs');
+    if (!logsEl) return;
+    const time = new Date().toLocaleTimeString('zh-TW', { hour12: false });
+    
+    let colorClass = 'text-slate-300';
+    let icon = 'fa-info-circle text-blue-400';
+    if (type === 'success') { colorClass = 'text-emerald-400'; icon = 'fa-check-circle'; }
+    if (type === 'error') { colorClass = 'text-rose-400'; icon = 'fa-times-circle'; }
+    if (type === 'warn') { colorClass = 'text-amber-400'; icon = 'fa-exclamation-triangle'; }
+
+    const logItem = document.createElement('div');
+    logItem.className = `flex items-start gap-2 ${colorClass}`;
+    logItem.innerHTML = `<span class="text-slate-500 shrink-0">[${time}]</span> <i class="fas ${icon} mt-0.5 shrink-0"></i> <span>${msg}</span>`;
+    logsEl.appendChild(logItem);
+    logsEl.scrollTop = logsEl.scrollHeight;
+  }
+
+  // Clear Diag Logs
+  function clearDiagLogs() {
+    const logsEl = document.getElementById('diagnosticLogs');
+    if (logsEl) logsEl.innerHTML = '';
+  }
+
+  // Update Header Connection Badge UI
+  window.updateConnectionStatusUI = function(isConnected, details = '') {
+    const statusBadge = document.getElementById('statusBadge');
+    const statusDot = document.getElementById('statusDot');
+    const statusPing = document.getElementById('statusPing');
+    const statusText = document.getElementById('statusText');
+
+    if (isConnected) {
+      statusBadge.className = "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/60 hover:shadow-sm";
+      statusDot.className = "relative inline-flex rounded-full h-2 w-2 bg-emerald-500";
+      statusPing.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75";
+      statusText.innerText = `Firebase 雲端即時同步中 (${details})`;
+    } else {
+      statusBadge.className = "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/60 hover:shadow-sm";
+      statusDot.className = "relative inline-flex rounded-full h-2 w-2 bg-amber-500";
+      statusPing.className = "hidden";
+      statusText.innerText = "本地模式 (點擊排查 Firebase)";
+    }
+  };
+
+  window.runFirebaseDiagnostics = async function() {
+    clearDiagLogs();
+    const guideEl = document.getElementById('troubleshootGuide');
+    const contentEl = document.getElementById('troubleshootContent');
+    guideEl.classList.add('hidden');
+
+    addDiagLog('開始運行 Firebase 雲端資料庫連線測試...', 'info');
+
+    // Step 1: Check Config
+    const cfg = window.activeConfig;
+    addDiagLog(`檢查目標 Project ID: "${cfg.projectId}"`, 'info');
+
+    if (!cfg.apiKey || !cfg.projectId) {
+      addDiagLog('錯誤：Firebase 設定檔缺失 Key 或 ProjectID！', 'error');
+      showTroubleshoot('config-invalid', '請檢查 Firebase 設定輸入框，確保所有欄位已完整填寫。');
+      return;
+    }
+
+    // Step 2: Initialize App
+    try {
+      let app;
+      if (!getApps().length) {
+        app = initializeApp(cfg);
+      } else {
+        app = getApp();
+      }
+      window.db = getFirestore(app);
+      addDiagLog('Firebase Web SDK 初始化成功。', 'success');
+    } catch (e) {
+      addDiagLog(`SDK 初始化失敗: ${e.message}`, 'error');
+      showTroubleshoot('sdk-fail', e.message);
+      return;
+    }
+
+    // Step 3: Test Read Permission
+    addDiagLog('正在發送請求測試 Firestore 「讀取 (Read)」權限...', 'info');
+    try {
+      const q = query(collection(window.db, 'housework_tasks'), limit(1));
+      await getDocs(q);
+      addDiagLog('成功！Firestore 讀取權限測試通過。', 'success');
+    } catch (err) {
+      addDiagLog(`讀取測試失敗: [${err.code}] ${err.message}`, 'error');
+      handleFirebaseError(err);
+      return;
+    }
+
+    // Step 4: Real-time Listener Connection
+    addDiagLog('正在設定 Firestore 即時監聽器 (onSnapshot)...', 'info');
+    try {
+      if (window.unsubscribeTasks) window.unsubscribeTasks();
+
+      const tasksCol = collection(window.db, 'housework_tasks');
+      window.unsubscribeTasks = onSnapshot(tasksCol, (snapshot) => {
+        const remoteTasks = [];
+        snapshot.forEach(docSnap => {
+          remoteTasks.push({ id: docSnap.id, ...docSnap.data() });
+        });
+        window.tasks = remoteTasks;
+        window.isFirebaseConnected = true;
+        updateConnectionStatusUI(true, cfg.projectId);
+        window.renderApp();
+      }, (err) => {
+        addDiagLog(`即時同步中斷: [${err.code}] ${err.message}`, 'error');
+        window.isFirebaseConnected = false;
+        updateConnectionStatusUI(false);
+        handleFirebaseError(err);
+      });
+
+      addDiagLog('即時連線監聽器啟動成功！數據庫運作正常。', 'success');
+      showToast('Firebase 雲端資料庫連線順暢！', 'success');
+    } catch (err) {
+      addDiagLog(`監聽啟動失敗: ${err.message}`, 'error');
+      handleFirebaseError(err);
+    }
+  };
+
+  // Helper: Handle & Map Firebase Errors to readable solution
+  function handleFirebaseError(err) {
+    window.isFirebaseConnected = false;
+    updateConnectionStatusUI(false);
+
+    if (err.code === 'permission-denied') {
+      showTroubleshoot('permission-denied');
+    } else if (err.code === 'failed-precondition' || err.message.includes('not found')) {
+      showTroubleshoot('not-created');
+    } else if (err.code === 'unavailable') {
+      showTroubleshoot('unavailable');
+    } else {
+      showTroubleshoot('generic', err.message);
+    }
+  }
+
+  // Display Troubleshooting Box with Fixes
+  function showTroubleshoot(type, customMsg = '') {
+    const guideEl = document.getElementById('troubleshootGuide');
+    const contentEl = document.getElementById('troubleshootContent');
+    guideEl.classList.remove('hidden');
+
+    if (type === 'permission-denied') {
+      contentEl.innerHTML = `
+        <p><strong class="text-rose-600 dark:text-rose-400">原因：Firestore 資料庫安全規則（Rules）擋住了讀寫要求。</strong></p>
+        <p><strong>解決步驟（只需 30 秒）：</strong></p>
+        <ol class="list-decimal ml-5 space-y-1">
+          <li>前往 <a href="https://console.firebase.google.com/" target="_blank" class="underline font-semibold text-blue-600 dark:text-blue-400">Firebase Console</a> 進入您的專案 (<code class="bg-amber-100 dark:bg-amber-900 px-1 rounded">kidney-f1e3c</code>)。</li>
+          <li>左側選單點擊 <strong>Firestore Database</strong> ➔ 點選上方 <strong>Rules (規則)</strong> 頁籤。</li>
+          <li>將裡面的內容改為允許讀寫：</li>
+        </ol>
+        <div class="relative">
+          <pre id="ruleSnippet" class="bg-slate-900 text-amber-300 p-2.5 rounded-lg text-[11px] font-mono select-all overflow-x-auto">rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}</pre>
+          <button onclick="copyRuleSnippet()" class="absolute top-2 right-2 px-2 py-1 bg-slate-700 hover:bg-slate-600 text-white rounded text-[10px]">複製規則</button>
+        </div>
+        <p>4. 點擊右上角藍色的 <strong>Publish (發佈)</strong> 按鈕，發佈後回此處點擊「重新測試連線」。</p>
+      `;
+    } else if (type === 'not-created') {
+      contentEl.innerHTML = `
+        <p><strong class="text-rose-600 dark:text-rose-400">原因：專案中尚未建立 Firestore Database。</strong></p>
+        <p><strong>解決步驟：</strong></p>
+        <ol class="list-decimal ml-5 space-y-1">
+          <li>登入 <a href="https://console.firebase.google.com/" target="_blank" class="underline font-semibold text-blue-600 dark:text-blue-400">Firebase Console</a>。</li>
+          <li>點選左側 <strong>Firestore Database</strong>。</li>
+          <li>點擊 <strong>「建立資料庫 (Create database)」</strong>，選擇地區（如 asia-east1 台灣），安全模式選擇<strong>「測試模式 (Test mode)」</strong>即可。</li>
+        </ol>
+      `;
+    } else if (type === 'unavailable') {
+      contentEl.innerHTML = `
+        <p><strong class="text-amber-700 dark:text-amber-300">原因：網路無法連線至 Firebase 或被廣告攔截插件阻擋。</strong></p>
+        <p>請檢查您的網路連線，或嘗試暫時關閉 AdBlocker 插件後重新整理頁面。</p>
+      `;
+    } else {
+      contentEl.innerHTML = `<p>未知錯誤：${customMsg}</p>`;
+    }
+  }
+
+  // Copy rule helper
+  window.copyRuleSnippet = function() {
+    const text = `rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /{document=**} {\n      allow read, write: if true;\n    }\n  }\n}`;
+    navigator.clipboard.writeText(text).then(() => {
+      showToast('安全規則已複製到剪貼簿！', 'success');
+    }).catch(() => {
+      document.execCommand('copy');
+      showToast('已複製！', 'success');
+    });
+  };
+
+  window.initApp = function() {
+    // Load local storage fallback tasks
+    const savedTasks = localStorage.getItem('housework_local_tasks');
+    if (savedTasks) {
+      try { window.tasks = JSON.parse(savedTasks); } catch(e) {}
+    } else {
+      // Default sample task
+      window.tasks = [{
+        id: 'sample-1',
+        title: '定期清理冰箱過期食物',
+        assignee: '媽媽',
+        dueDate: new Date().toISOString().split('T')[0],
+        repeat: 'interval',
+        intervalDays: 7,
+        completed: false,
+        notes: '檢查醬料區'
+      }];
+    }
+
+    // Load templates
+    const savedTpls = localStorage.getItem('housework_templates');
+    if (savedTpls) {
+      try { window.quickTemplates = JSON.parse(savedTpls); } catch(e){}
+    }
+
+    // Load config preference
+    const savedCfg = localStorage.getItem('custom_firebase_config');
+    if (savedCfg) {
+      try { window.activeConfig = JSON.parse(savedCfg); } catch(e){}
+    }
+
+    // Fill form inputs in Firebase Modal
+    document.getElementById('cfg_apiKey').value = window.activeConfig.apiKey || '';
+    document.getElementById('cfg_projectId').value = window.activeConfig.projectId || '';
+    document.getElementById('cfg_authDomain').value = window.activeConfig.authDomain || '';
+    document.getElementById('cfg_appId').value = window.activeConfig.appId || '';
+
+    // Default today date input
+    document.getElementById('taskDueDate').value = new Date().toISOString().split('T')[0];
+
+    // Render initial UI
+    window.renderApp();
+
+    // Auto run diagnostics on boot
+    window.runFirebaseDiagnostics();
+  };
+
+  // Save Local Fallback Helper
+  function saveLocalTasks() {
+    localStorage.setItem('housework_local_tasks', JSON.stringify(window.tasks));
+  }
+
+  window.handleAddTask = async function(e) {
+    e.preventDefault();
+    const title = document.getElementById('taskTitle').value.trim();
+    const assignee = document.getElementById('taskAssignee').value;
+    const dueDate = document.getElementById('taskDueDate').value;
+    const repeat = document.getElementById('taskRepeat').value;
+    const intervalDays = parseInt(document.getElementById('taskInterval').value) || 3;
+    const notes = document.getElementById('taskNotes').value.trim();
+
+    if (!title || !dueDate) return;
+
+    const newTaskData = {
+      title,
+      assignee,
+      dueDate,
+      repeat,
+      intervalDays: repeat === 'interval' ? intervalDays : 1,
+      notes,
+      completed: false,
+      createdAt: new Date().toISOString()
+    };
+
+    if (window.isFirebaseConnected && window.db) {
+      try {
+        await addDoc(collection(window.db, 'housework_tasks'), newTaskData);
+        showToast('已成功新增至 Firebase 雲端！', 'success');
+      } catch (err) {
+        console.error("Firebase Add Failed", err);
+        showToast('雲端儲存失敗，已轉存至本地', 'warning');
+        newTaskData.id = 'local_' + Date.now();
+        window.tasks.unshift(newTaskData);
+        saveLocalTasks();
+        window.renderApp();
+      }
+    } else {
+      newTaskData.id = 'local_' + Date.now();
+      window.tasks.unshift(newTaskData);
+      saveLocalTasks();
+      showToast('已儲存至本地儲存區', 'info');
+      window.renderApp();
+    }
+
+    // Reset Form
+    document.getElementById('taskTitle').value = '';
+    document.getElementById('taskNotes').value = '';
+  };
+
+  window.toggleTaskComplete = async function(taskId) {
+    const task = window.tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    const newStatus = !task.completed;
+    
+    // Auto calculate next date if recurring and completing
+    let nextDueDate = task.dueDate;
+    if (newStatus && task.repeat !== 'none') {
+      const baseDate = new Date();
+      let addDays = 1;
+      if (task.repeat === 'interval') addDays = task.intervalDays || 1;
+      baseDate.setDate(baseDate.getDate() + addDays);
+      nextDueDate = baseDate.toISOString().split('T')[0];
+    }
+
+    if (window.isFirebaseConnected && window.db && !taskId.startsWith('local_')) {
+      try {
+        const taskRef = doc(window.db, 'housework_tasks', taskId);
+        await updateDoc(taskRef, {
+          completed: newStatus,
+          dueDate: nextDueDate
+        });
+        showToast(newStatus ? '家務已完成！(已推算下一次)' : '已恢復為待辦', 'success');
+      } catch(err) {
+        showToast('更新失敗：' + err.message, 'error');
+      }
+    } else {
+      task.completed = newStatus;
+      if (newStatus && task.repeat !== 'none') task.dueDate = nextDueDate;
+      saveLocalTasks();
+      window.renderApp();
+      showToast(newStatus ? '家務已完成！' : '已恢復為待辦', 'info');
+    }
+  };
+
+  window.deleteTask = async function(taskId) {
+    if (window.isFirebaseConnected && window.db && !taskId.startsWith('local_')) {
+      try {
+        await deleteDoc(doc(window.db, 'housework_tasks', taskId));
+        showToast('項目已從雲端刪除', 'success');
+      } catch (err) {
+        showToast('刪除失敗：' + err.message, 'error');
+      }
+    } else {
+      window.tasks = window.tasks.filter(t => t.id !== taskId);
+      saveLocalTasks();
+      window.renderApp();
+      showToast('項目已刪除', 'info');
+    }
+  };
+
+  window.bringForwardOverdueTasks = async function() {
+    const today = new Date().toISOString().split('T')[0];
+    const overdueTasks = window.tasks.filter(t => !t.completed && t.dueDate < today);
+
+    if (overdueTasks.length === 0) return;
+
+    let updatedCount = 0;
+    for (const t of overdueTasks) {
+      if (window.isFirebaseConnected && window.db && !t.id.startsWith('local_')) {
+        try {
+          await updateDoc(doc(window.db, 'housework_tasks', t.id), { dueDate: today });
+          updatedCount++;
+        } catch(e){}
+      } else {
+        t.dueDate = today;
+        updatedCount++;
+      }
+    }
+
+    if (!window.isFirebaseConnected) saveLocalTasks();
+    window.renderApp();
+    showToast(`成功將 ${updatedCount} 項過期家務帶到今天！`, 'success');
+  };
+
+  window.fillQuickChip = function(title, assignee) {
+    document.getElementById('taskTitle').value = title;
+    if (assignee) document.getElementById('taskAssignee').value = assignee;
+    showToast(`已自動帶入：「${title}」`, 'info');
+  };
+
+  window.renderQuickChips = function() {
+    const container = document.getElementById('quickChipsContainer');
+    if (!container) return;
+
+    container.innerHTML = window.quickTemplates.map(tpl => `
+      <button onclick="fillQuickChip('${tpl.title}', '${tpl.assignee}')" class="px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 hover:bg-blue-50 hover:text-blue-600 dark:bg-slate-700 dark:hover:bg-blue-900/40 dark:hover:text-blue-300 text-slate-700 dark:text-slate-200 transition border border-slate-200/60 dark:border-slate-600/60 flex items-center gap-1">
+        <span>${tpl.title}</span>
+        <span class="text-[10px] opacity-60">(${tpl.assignee})</span>
+      </button>
+    `).join('');
+  };
+
+  window.addCustomTemplateChip = function() {
+    const name = document.getElementById('newChipName').value.trim();
+    if (!name) return;
+    window.quickTemplates.push({ id: Date.now().toString(), title: name, assignee: '全家共同' });
+    localStorage.setItem('housework_templates', JSON.stringify(window.quickTemplates));
+    document.getElementById('newChipName').value = '';
+    window.renderQuickChips();
+    window.renderTemplateManager();
+    showToast('已新增快選模板', 'success');
+  };
+
+  window.removeTemplateChip = function(id) {
+    window.quickTemplates = window.quickTemplates.filter(t => t.id !== id);
+    localStorage.setItem('housework_templates', JSON.stringify(window.quickTemplates));
+    window.renderQuickChips();
+    window.renderTemplateManager();
+  };
+
+  window.renderTemplateManager = function() {
+    const listEl = document.getElementById('templateManagerList');
+    if (!listEl) return;
+    listEl.innerHTML = window.quickTemplates.map(t => `
+      <div class="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-slate-700 text-xs">
+        <span class="font-medium text-slate-800 dark:text-slate-100">${t.title}</span>
+        <button onclick="removeTemplateChip('${t.id}')" class="text-rose-500 hover:text-rose-700">
+          <i class="fas fa-trash-alt"></i>
+        </button>
+      </div>
+    `).join('');
+  };
+
+  window.renderApp = function() {
+    window.renderQuickChips();
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const overdueList = window.tasks.filter(t => !t.completed && t.dueDate < todayStr);
+
+    // Overdue Banner Check
+    const banner = document.getElementById('overdueBanner');
+    const overdueText = document.getElementById('overdueText');
+    if (overdueList.length > 0) {
+      banner.classList.remove('hidden');
+      overdueText.innerText = `發現 ${overdueList.length} 項之前的家務尚未完成（點擊一鍵歸入今天）。`;
+    } else {
+      banner.classList.add('hidden');
+    }
+
+    if (window.currentView === 'list') {
+      renderListView();
+    } else {
+      renderCalendarView();
+    }
+  };
+
+  // Render List View
+  function renderListView() {
+    const container = document.getElementById('taskListContainer');
+    const filterAssignee = document.getElementById('filterAssignee').value;
+    const filterStatus = document.getElementById('filterStatus').value;
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    let filtered = window.tasks.filter(t => {
+      if (filterAssignee !== 'all' && t.assignee !== filterAssignee) return false;
+      if (filterStatus === 'pending' && t.completed) return false;
+      if (filterStatus === 'completed' && !t.completed) return false;
+      return true;
+    });
+
+    // Sort: Overdue first, then by date
+    filtered.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+
+    if (filtered.length === 0) {
+      container.innerHTML = `
+        <div class="text-center py-12 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/60">
+          <i class="fas fa-clipboard-check text-4xl text-slate-300 dark:text-slate-600 mb-3"></i>
+          <p class="text-sm font-medium text-slate-500">沒有符合條件的家務項目</p>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = filtered.map(t => {
+      const isOverdue = !t.completed && t.dueDate < todayStr;
+      const isToday = t.dueDate === todayStr;
+
+      let badgeClass = "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300";
+      if (isOverdue) badgeClass = "bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 font-bold";
+      else if (isToday) badgeClass = "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 font-semibold";
+
+      return `
+        <div class="group bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border ${isOverdue ? 'border-rose-300 dark:border-rose-800' : 'border-slate-200/80 dark:border-slate-700/60'} flex items-start gap-3.5 transition hover:shadow-md">
+          <button onclick="toggleTaskComplete('${t.id}')" class="mt-0.5 shrink-0 text-xl text-slate-300 hover:text-blue-500 dark:text-slate-600 transition">
+            <i class="${t.completed ? 'fas fa-check-circle text-emerald-500' : 'far fa-circle'}"></i>
+          </button>
+          
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 flex-wrap mb-1">
+              <h4 class="text-sm font-bold ${t.completed ? 'line-through text-slate-400 dark:text-slate-500' : 'text-slate-800 dark:text-slate-100'}">${t.title}</h4>
+              <span class="px-2 py-0.5 rounded-md text-[11px] ${badgeClass}">
+                ${isOverdue ? '已過期 ' + t.dueDate : (isToday ? '今天 ' + t.dueDate : t.dueDate)}
+              </span>
+              <span class="px-2 py-0.5 rounded-md text-[11px] bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                <i class="fas fa-user text-[10px] me-1"></i>${t.assignee}
+              </span>
+              ${t.repeat !== 'none' ? `<span class="px-2 py-0.5 rounded-md text-[10px] bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-300"><i class="fas fa-redo me-1"></i>${t.repeat === 'daily' ? '每日' : '每' + t.intervalDays + '天'}</span>` : ''}
+            </div>
+            ${t.notes ? `<p class="text-xs text-slate-500 dark:text-slate-400 mt-1">${t.notes}</p>` : ''}
+          </div>
+
+          <button onclick="deleteTask('${t.id}')" class="text-slate-300 hover:text-rose-500 dark:text-slate-600 p-1 opacity-80 group-hover:opacity-100 transition">
+            <i class="fas fa-trash-alt text-xs"></i>
+          </button>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // Render Calendar View
+  function renderCalendarView() {
+    const calendarGrid = document.getElementById('calendarGrid');
+    const monthTitle = document.getElementById('calendarMonthTitle');
+    
+    const year = window.calendarDate.getFullYear();
+    const month = window.calendarDate.getMonth();
+
+    monthTitle.innerText = `${year} 年 ${month + 1} 月`;
+
+    const firstDayIndex = new Date(year, month, 1).getDay();
+    const lastDay = new Date(year, month + 1, 0).getDate();
+
+    let gridHtml = '';
+
+    // Empty Slots
+    for (let i = 0; i < firstDayIndex; i++) {
+      gridHtml += `<div class="h-24 p-1 bg-slate-50/50 dark:bg-slate-900/30 rounded-xl"></div>`;
+    }
+
+    // Days
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    for (let day = 1; day <= lastDay; day++) {
+      const monthStr = String(month + 1).padStart(2, '0');
+      const dayStr = String(day).padStart(2, '0');
+      const dateKey = `${year}-${monthStr}-${dayStr}`;
+
+      const dayTasks = window.tasks.filter(t => t.dueDate === dateKey);
+      const isToday = dateKey === todayStr;
+
+      gridHtml += `
+        <div class="h-24 p-1 rounded-xl border ${isToday ? 'border-blue-500 bg-blue-50/30 dark:bg-blue-950/20' : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-800'} flex flex-col justify-start overflow-hidden">
+          <div class="text-[11px] font-bold ${isToday ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'} px-1 mb-1">${day}</div>
+          <div class="space-y-1 overflow-y-auto custom-scrollbar flex-1">
+            ${dayTasks.map(t => `
+              <div class="px-1.5 py-0.5 rounded text-[10px] font-medium truncate ${t.completed ? 'bg-slate-100 text-slate-400 line-through dark:bg-slate-700' : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'}">
+                ${t.title}
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    calendarGrid.innerHTML = gridHtml;
+  }
+
+  window.switchView = function(viewMode) {
+    window.currentView = viewMode;
+    const listContainer = document.getElementById('listView');
+    const calendarContainer = document.getElementById('calendarView');
+    const tabList = document.getElementById('tabBtnList');
+    const tabCalendar = document.getElementById('tabBtnCalendar');
+
+    if (viewMode === 'list') {
+      listContainer.classList.remove('hidden');
+      calendarContainer.classList.add('hidden');
+      tabList.className = "flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-xs font-semibold transition-all bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm";
+      tabCalendar.className = "flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-all";
+    } else {
+      listContainer.classList.add('hidden');
+      calendarContainer.classList.remove('hidden');
+      tabCalendar.className = "flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-xs font-semibold transition-all bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm";
+      tabList.className = "flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-all";
+    }
+    window.renderApp();
+  };
+
+  window.changeMonth = function(delta) {
+    window.calendarDate.setMonth(window.calendarDate.getMonth() + delta);
+    renderCalendarView();
+  };
+
+  window.toggleRepeatIntervalInput = function() {
+    const val = document.getElementById('taskRepeat').value;
+    const container = document.getElementById('repeatIntervalContainer');
+    if (val === 'interval') container.classList.remove('hidden');
+    else container.classList.add('hidden');
+  };
+
+  window.openFirebaseModal = function() {
+    document.getElementById('firebaseModal').classList.remove('hidden');
+    window.runFirebaseDiagnostics();
+  };
+  window.closeFirebaseModal = function() {
+    document.getElementById('firebaseModal').classList.add('hidden');
+  };
+
+  window.saveCustomFirebaseConfig = function(e) {
+    e.preventDefault();
+    const newConfig = {
+      apiKey: document.getElementById('cfg_apiKey').value.trim(),
+      projectId: document.getElementById('cfg_projectId').value.trim(),
+      authDomain: document.getElementById('cfg_authDomain').value.trim(),
+      appId: document.getElementById('cfg_appId').value.trim(),
+      storageBucket: `${document.getElementById('cfg_projectId').value.trim()}.appspot.com`
+    };
+
+    window.activeConfig = newConfig;
+    localStorage.setItem('custom_firebase_config', JSON.stringify(newConfig));
+    showToast('已更新設定，重新測試連線中...', 'info');
+    window.runFirebaseDiagnostics();
+  };
+
+  window.restoreDefaultFirebaseConfig = function() {
+    window.activeConfig = DEFAULT_FIREBASE_CONFIG;
+    localStorage.removeItem('custom_firebase_config');
+    document.getElementById('cfg_apiKey').value = DEFAULT_FIREBASE_CONFIG.apiKey;
+    document.getElementById('cfg_projectId').value = DEFAULT_FIREBASE_CONFIG.projectId;
+    document.getElementById('cfg_authDomain').value = DEFAULT_FIREBASE_CONFIG.authDomain;
+    document.getElementById('cfg_appId').value = DEFAULT_FIREBASE_CONFIG.appId;
+    showToast('已重置為預設 Config，測試中...', 'info');
+    window.runFirebaseDiagnostics();
+  };
+
+  window.openTemplateModal = function() {
+    document.getElementById('templateModal').classList.remove('hidden');
+    window.renderTemplateManager();
+  };
+  window.closeTemplateModal = function() {
+    document.getElementById('templateModal').classList.add('hidden');
+  };
+
+  window.showToast = function(message, type = 'info') {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+
+    let bg = 'bg-slate-800 text-white';
+    if (type === 'success') bg = 'bg-emerald-600 text-white';
+    if (type === 'error') bg = 'bg-rose-600 text-white';
+    if (type === 'warning') bg = 'bg-amber-600 text-white';
+
+    const toast = document.createElement('div');
+    toast.className = `${bg} px-4 py-2.5 rounded-xl shadow-lg text-xs font-semibold flex items-center gap-2 transition-all duration-300 opacity-0 transform translate-y-2 pointer-events-auto`;
+    toast.innerHTML = `<span>${message}</span>`;
+
+    container.appendChild(toast);
+    setTimeout(() => {
+      toast.classList.remove('opacity-0', 'translate-y-2');
+    }, 10);
+
+    setTimeout(() => {
+      toast.classList.add('opacity-0', 'translate-y-2');
+      setTimeout(() => toast.remove(), 300);
+    }, 3000);
+  };
+
+  // Dark Mode Toggle
+  window.toggleDarkMode = function() {
+    document.documentElement.classList.toggle('dark');
+    const icon = document.getElementById('themeIcon');
+    if (document.documentElement.classList.contains('dark')) {
+      icon.className = 'fas fa-sun text-amber-400';
+    } else {
+      icon.className = 'fas fa-moon';
+    }
+  };
+
+  // Start app on DOMReady
+  window.addEventListener('DOMContentLoaded', () => {
+    window.initApp();
+  });
+</script>
+</body>
+</html>
